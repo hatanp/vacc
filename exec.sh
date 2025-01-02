@@ -7,4 +7,4 @@ export FI_CXI_DISABLE_HOST_REGISTER=1
 #export FI_CXI_DEFAULT_TX_SIZE=32768
 export OMP_NUM_THREADS=8
 #--hostfile=hostfile_part
-source compilesh && mpiexec --cpu-bind=$CPU_BIND -n 8 -ppn 1 ./test_compile
+source compile.sh && mpiexec --cpu-bind=$CPU_BIND -n 16 -ppn 2 ./test_compile

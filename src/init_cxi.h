@@ -5,7 +5,8 @@
 #define EXTRA_DEBUG false
 
 #define NIC_COUNT 8
-#define NIC_PER_CPU 4
+#define NIC_PER_HOST 4
+#define RANK_PER_NODE 2
 namespace vacc
 {
     typedef struct vacc_fi_info{

@@ -46,8 +46,8 @@ int vacc::ring_allreduce(int world_size, int rank, vacc::vacc_fi_info_t* vacc_fi
     
     unsigned long min_time = std::numeric_limits<unsigned long>::max();
 
-    fi_addr_t ring_prev = rank > 0 ? vacc_fi_info->addr_vect[nic][(rank-1)*NIC_COUNT] : vacc_fi_info->addr_vect[nic][(world_size-1)*NIC_COUNT];
-    fi_addr_t ring_next = rank < world_size -1 ? vacc_fi_info->addr_vect[nic][(rank+1)*NIC_COUNT] : vacc_fi_info->addr_vect[nic][0];
+    fi_addr_t ring_prev = rank > 0 ? vacc_fi_info->addr_vect[nic][(rank-1)*NIC_PER_HOST] : vacc_fi_info->addr_vect[nic][(world_size-1)*NIC_PER_HOST];
+    fi_addr_t ring_next = rank < world_size -1 ? vacc_fi_info->addr_vect[nic][(rank+1)*NIC_PER_HOST] : vacc_fi_info->addr_vect[nic][0];
     //std::cout << rank << ", ring_prev: " << ring_prev << ",ring_next: " << ring_next << ",nic_count: " << vacc_fi_info->nic_count << "\n";
 
     for(int l = 0;l<3;l++){
