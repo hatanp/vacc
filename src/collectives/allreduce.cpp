@@ -23,6 +23,7 @@
 #include <sys/uio.h>
 
 int vacc::ring_allreduce(int world_size, int rank, vacc::vacc_fi_info_t* vacc_fi_info){
+    //std::cout << "starting allreduce: " << world_size << ", " << rank << "\n";
     int err = 0;
     int nic = 0;
     size_t elem_count = 2*512'000'000;
@@ -45,10 +46,11 @@ int vacc::ring_allreduce(int world_size, int rank, vacc::vacc_fi_info_t* vacc_fi
     
     unsigned long min_time = std::numeric_limits<unsigned long>::max();
 
-    fi_addr_t ring_prev = rank > 0 ? vacc_fi_info->addr_vect[nic][rank-1] : vacc_fi_info->addr_vect[nic][world_size-1];
-    fi_addr_t ring_next = rank < world_size -1 ? vacc_fi_info->addr_vect[nic][rank+1] : vacc_fi_info->addr_vect[nic][0];
+    fi_addr_t ring_prev = rank > 0 ? vacc_fi_info->addr_vect[nic][(rank-1)*NIC_COUNT] : vacc_fi_info->addr_vect[nic][(world_size-1)*NIC_COUNT];
+    fi_addr_t ring_next = rank < world_size -1 ? vacc_fi_info->addr_vect[nic][(rank+1)*NIC_COUNT] : vacc_fi_info->addr_vect[nic][0];
+    //std::cout << rank << ", ring_prev: " << ring_prev << ",ring_next: " << ring_next << ",nic_count: " << vacc_fi_info->nic_count << "\n";
 
-    for(int l = 0;l<5;l++){
+    for(int l = 0;l<3;l++){
         
         for(int i = 0; i<elem_count; i++){
             input_buf[i] = rank;
@@ -99,9 +101,9 @@ int vacc::ring_allreduce(int world_size, int rank, vacc::vacc_fi_info_t* vacc_fi
             }
 
             int completions = 0;
-
+            int fails = 0;
             //Poll for receives
-            while (completions < pipe_chunk_count*nic_chunk_count){
+            while (fails < 10000 && completions < pipe_chunk_count*nic_chunk_count){
                 struct fi_cq_tagged_entry entry;
                 memset(&entry, 0, sizeof(entry));
                 entry.op_context = vacc_fi_info->rx_ctx[nic];
@@ -158,7 +160,8 @@ int vacc::ring_allreduce(int world_size, int rank, vacc::vacc_fi_info_t* vacc_fi
                 } else if (ret == -FI_EAGAIN) {
                     if(EXTRA_DEBUG)
                         std::cout << " recv fi_cq_read FI_EAGAIN " << ret << "\n";
-                    //fails += 1;
+                    std::this_thread::sleep_for(std::chrono::microseconds(100));
+                    fails += 1;
                 }else if (ret == -FI_EAVAIL) {
                     std::cout << rank << " fi_cq_read " << ret << " " << fi_strerror(ret) << "\n";
                     std::cout << "fi_cq_readerr " << " " << fi_cq_readerr(vacc_fi_info->rx_cq[nic], &cq_err, 0) << "\n";
@@ -171,6 +174,8 @@ int vacc::ring_allreduce(int world_size, int rank, vacc::vacc_fi_info_t* vacc_fi
                 }
                 //std::this_thread::sleep_for(std::chrono::microseconds(100));
             }
+            //std::cout << rank << " fails: " << fails << ", completions: " << completions << "\n";
+            //return 0;
 
             
 
@@ -267,10 +272,13 @@ int vacc::ring_allreduce(int world_size, int rank, vacc::vacc_fi_info_t* vacc_fi
         min_time = std::min(end - start, min_time);
         MPI_Barrier(MPI_COMM_WORLD); 
     }
-    std::cout << min_time/1000000 << "ms " << min_time << " ns" << " on rank " << rank << "\n";
-    std::cout << "\"GB/s\" " << (float)elem_count*4*(2*((float)(world_size-1))/(float)world_size)/(float)min_time << " on rank " << rank << "\n";
+    //std::cout << min_time/1000000 << "ms " << min_time << " ns" << " on rank " << rank << "\n";
 
-    std::cout << "Rank " << rank << " Got: " << *(input_buf+0) << ',' <<  *(input_buf+1) << "\n";
+    //bits_per_item*elems_per_bucket*num_sends/time
+    //num_sends=2*(N-1) in ring, 2 for reduce-scatter and allgather rings, (N-1) sends per ring. 
+    std::cout << "\"GB/s\" " << 4 * ((float)elem_count/(float)world_size) * 2*(world_size-1) / (float)min_time << " on rank " << rank << "\n";
+
+    //std::cout << "Rank " << rank << " Got: " << *(input_buf+0) << ',' <<  *(input_buf+1) << "\n";
     int correct = 0;
     int incorrect = 0;
     int correct_result = 0;
@@ -285,7 +293,9 @@ int vacc::ring_allreduce(int world_size, int rank, vacc::vacc_fi_info_t* vacc_fi
             incorrect++;
         }
     }
-    std::cout << "\n" << "Correct:  " << correct << " Incorrect: " << incorrect << "\n"<< "\n";
+    if(incorrect>0){
+        std::cout << "Correct:  " << correct << " Incorrect: " << incorrect << "\n";
+    }
     /*
     struct fi_cq_tagged_entry entry;
     memset(&entry,0,sizeof(entry));
@@ -297,6 +307,6 @@ int vacc::ring_allreduce(int world_size, int rank, vacc::vacc_fi_info_t* vacc_fi
     entry.tag = rank == 0 ? 1 : 2;*/
 
     //std::cout << "Fails:  " << fails << "," << fails2 << " ";
-    std::cout << "Done " << rank << "\n";
+    //std::cout << "Done " << rank << "\n";
     return 0;
 }

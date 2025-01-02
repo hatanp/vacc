@@ -1,7 +1,7 @@
 //#include <sycl/sycl.hpp>
 
 #include "../init_cxi.h"
-#include "../vacc.h"
+#include "../collectives/allreduce.h"
 
 #include <rdma/fabric.h>
 #include <rdma/fi_domain.h>
@@ -35,16 +35,18 @@ int main(int argc, char* argv[]) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     
-    std::cout << "world_size " << world_size << " rank " << rank << "\n";
+    //std::cout << "world_size " << world_size << " rank " << rank << "\n";
 
     //std::cout << "Fails:  " << fails << "," << fails2 << " ";
-    vacc::vacc_fi_info_t* vacc_fi_info_t = vacc::init_fi_cxi(world_size,rank);
-    if(vacc_fi_info_t->status == 0){
-        std::cout << "Done " << vacc_fi_info_t->status << "\n";
-        //std::cout << "Done " << vacc::init_fi_cxi(2,2).status << "\n";
-        return 0;
-    } else {
-        std::cout << "Done " << vacc_fi_info_t->status << "\n";
+    vacc::vacc_fi_info_t* vacc_fi_info = vacc::init_fi_cxi(world_size,rank);
+    if(vacc_fi_info->status != 0){
+        std::cout << "Error " << vacc_fi_info->status << "\n";
         return 1;
+        //std::cout << "Done " << vacc_fi_info_t->status << "\n";
+        //std::cout << "Done " << vacc::init_fi_cxi(2,2).status << "\n";
     }
+    vacc::ring_allreduce(world_size, rank, vacc_fi_info);
+
+    std::cout << "Done: " << rank << "\n";
+    return 0;
 }

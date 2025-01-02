@@ -41,11 +41,15 @@ vacc::vacc_fi_info_t* vacc::init_fi_cxi(int world_size, int rank){
     hints->caps = FI_MSG | FI_TAGGED | FI_RECV | FI_SEND;
 
     {
-        //std::string domain_name = "cxi0";
-        //std::string domain_name = "cxi";
-        //domain_name += std::to_string(rank%8);
-        //hints->domain_attr->name = strdup(domain_name.c_str());
-        hints->fabric_attr->name = strdup("cxi");
+        if(NIC_COUNT == 1){
+            std::string domain_name = "cxi0";
+            //std::string domain_name = "cxi";
+            //domain_name += std::to_string(rank%8);
+            hints->domain_attr->name = strdup(domain_name.c_str());
+        } else {
+            hints->fabric_attr->name = strdup("cxi");
+        }
+
         hints->domain_attr->av_type = FI_AV_TABLE;
     }
 
@@ -84,9 +88,10 @@ vacc::vacc_fi_info_t* vacc::init_fi_cxi(int world_size, int rank){
         vacc_fi_info->status = 1;
         return vacc_fi_info;
     }
+    //Reset info back to first one
     curr_info = vacc_fi_info->info;
 
-    for(int n = 0; n<nic_count; n++){
+    for(int n = 0; n<NIC_COUNT; n++){
         
         err = fi_domain(vacc_fi_info->fabric, curr_info, &vacc_fi_info->domain[n], NULL);
         if (err != FI_SUCCESS) {
@@ -119,7 +124,7 @@ vacc::vacc_fi_info_t* vacc::init_fi_cxi(int world_size, int rank){
             return vacc_fi_info;
         }
         
-        err = fi_ep_bind(vacc_fi_info->ep[n], &(vacc_fi_info->av[n]->fid), 0);
+        err = fi_ep_bind(vacc_fi_info->ep[n], &vacc_fi_info->av[n]->fid, 0);
         if (err != FI_SUCCESS) {
             std::cout << "fi_ep_bind av TODO error handling lol" << err << fi_strerror(err) << "\n";
             vacc_fi_info->status = 1;
@@ -174,40 +179,42 @@ vacc::vacc_fi_info_t* vacc::init_fi_cxi(int world_size, int rank){
             std::cout << "TODO error handling lol\n";
         }
         curr_info = curr_info->next;
+
+        //std::cout << "Done once with n:" << n << "\n";
+
     }
 
+
     fi_addr_t *me[NIC_COUNT];
-    fi_addr_t *me_test;
-    size_t addrlen = 8;
+    size_t addrlen = 0;
+    fi_getname((fid_t)vacc_fi_info->ep[0], NULL, &addrlen);
     for(int i=0; i<NIC_COUNT;i++){
-
-        fi_getname((fid_t)vacc_fi_info->ep[i], NULL, &addrlen);
+        //std::cout << "Done av once with i:" << i << "\n";
         assert(addrlen == sizeof(uint64_t));
-
-        me_test = (fi_addr_t *)malloc(addrlen);
-        std::cout << "addr:" << *(me_test) << " " << addrlen << "\n";
-        err = fi_getname((fid_t)(vacc_fi_info->ep[i]), (void*)me_test, &addrlen);
+        me[i] = (fi_addr_t *)malloc(addrlen);
+        err = fi_getname((fid_t)(vacc_fi_info->ep[i]), &me[i], &addrlen);
         if (err != FI_SUCCESS) {
-            std::cout << "addr:" << *(me_test)  << "\n";
+            std::cout << "addr:" << *me[i] << "\n";
             std::cout << "fi_getname TODO error handling lol " << err << fi_strerror(err) << "\n";
             vacc_fi_info->status = 1;
             return vacc_fi_info;
         }
     }
 
-    if (true) {
+
+    if (DEBUG) {
         //std::cout << "addrlen:" << addrlen << " " << sizeof(uint64_t) << "\n";
         std::cout << "addr:" << *(me[0])  << "\n";
     }
 
-    void *loaded_addr = calloc(world_size*NIC_COUNT,addrlen);
+    fi_addr_t *loaded_addr = (fi_addr_t*)calloc(world_size*NIC_COUNT,addrlen);
 
     MPI_Allgather(me, NIC_COUNT, MPI_UINT64_T, loaded_addr, NIC_COUNT, MPI_UINT64_T, MPI_COMM_WORLD);
 
-    if(true) {
+    if(DEBUG) {
         std::cout << "loaded_addr: ";
         for(int i=0;i<world_size;i++){ 
-            std::cout << *((uint64_t*)loaded_addr+i) << ",";
+            std::cout << loaded_addr[i] << ",";
         }
         std::cout << "\n";
     }
