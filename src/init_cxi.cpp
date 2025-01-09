@@ -21,10 +21,19 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 
-vacc::vacc_fi_info_t* vacc::init_fi_cxi(int world_size, int rank){
-    int host_ind = rank%RANK_PER_NODE;
-    //vacc::vacc_fi_info_t* vacc_fi_info = (vacc::vacc_fi_info_t*)calloc(1,sizeof(vacc::vacc_fi_info_t));
+vacc::vacc_fi_info_t* vacc::init_fi_cxi(){
+
     vacc::vacc_fi_info_t* vacc_fi_info = new vacc::vacc_fi_info_t();
+    //int world_size = 0;
+    //int rank = 0;
+
+    MPI_Init(NULL, NULL);
+    MPI_Comm_size(MPI_COMM_WORLD, &vacc_fi_info->world_size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &vacc_fi_info->rank);
+
+    int host_ind = vacc_fi_info->rank%RANK_PER_NODE;
+    std::cout << "rank: " << vacc_fi_info->rank << " host_ind: " << host_ind << "\n";
+    //vacc::vacc_fi_info_t* vacc_fi_info = (vacc::vacc_fi_info_t*)calloc(1,sizeof(vacc::vacc_fi_info_t));
     
     struct fi_info *hints;
     int err;
@@ -72,7 +81,7 @@ vacc::vacc_fi_info_t* vacc::init_fi_cxi(int world_size, int rank){
     while(curr_info->next != NULL){
         curr_info = curr_info->next;
         if(DEBUG){
-            std::cout << "Domain name on rank " << rank << ", info, " << nic_count  << ": " << curr_info->domain_attr->name << "\n";
+            std::cout << "Domain name on rank " << vacc_fi_info->rank << ", info, " << nic_count  << ": " << curr_info->domain_attr->name << "\n";
         }
         nic_count += 1;
     }
@@ -144,11 +153,11 @@ vacc::vacc_fi_info_t* vacc::init_fi_cxi(int world_size, int rank){
 
         struct fi_cq_attr* cq_attr_tx = new fi_cq_attr();
         cq_attr_tx->format = FI_CQ_FORMAT_TAGGED;
-        cq_attr_tx->size = 16384;
+        cq_attr_tx->size = 32768*4;
 
         struct fi_cq_attr* cq_attr_rx = new fi_cq_attr();
         cq_attr_rx->format = FI_CQ_FORMAT_TAGGED;
-        cq_attr_rx->size = 16384;
+        cq_attr_rx->size = 32768*4;
         
         err = fi_cq_open(vacc_fi_info->domain[n], cq_attr_tx, &vacc_fi_info->tx_cq[n], NULL);
         if (err != FI_SUCCESS) {
@@ -213,13 +222,13 @@ vacc::vacc_fi_info_t* vacc::init_fi_cxi(int world_size, int rank){
         std::cout << "addr:" << me[0]  << "\n";
     }
 
-    fi_addr_t *loaded_addr = (fi_addr_t*)calloc(world_size*NIC_PER_HOST,addrlen);
+    fi_addr_t *loaded_addr = (fi_addr_t*)calloc(vacc_fi_info->world_size*NIC_PER_HOST,addrlen);
 
     MPI_Allgather(me, NIC_PER_HOST, MPI_UINT64_T, loaded_addr, NIC_PER_HOST, MPI_UINT64_T, MPI_COMM_WORLD);
 
     if(DEBUG) {
         std::cout << "loaded_addr: ";
-        for(int i=0;i<world_size;i++){ 
+        for(int i=0;i<vacc_fi_info->world_size;i++){ 
             std::cout << loaded_addr[i] << ",";
         }
         std::cout << "\n";
@@ -228,10 +237,10 @@ vacc::vacc_fi_info_t* vacc::init_fi_cxi(int world_size, int rank){
 
     for(int i=0; i<NIC_PER_HOST;i++){
         //fi_addr_t *addr_vect;
-        vacc_fi_info->addr_vect[i] = (fi_addr_t*)calloc(world_size*NIC_PER_HOST,addrlen);
-        int num_success = fi_av_insert(vacc_fi_info->av[i], loaded_addr, world_size*NIC_PER_HOST, vacc_fi_info->addr_vect[i], 0ULL, NULL);
-        if(num_success != world_size*NIC_PER_HOST){
-            std::cout << "fi_av_insert Not all addr added: " << num_success << "/" << world_size << " " << fi_strerror(num_success) << "\n";
+        vacc_fi_info->addr_vect[i] = (fi_addr_t*)calloc(vacc_fi_info->world_size*NIC_PER_HOST,addrlen);
+        int num_success = fi_av_insert(vacc_fi_info->av[i], loaded_addr, vacc_fi_info->world_size*NIC_PER_HOST, vacc_fi_info->addr_vect[i], 0ULL, NULL);
+        if(num_success != vacc_fi_info->world_size*NIC_PER_HOST){
+            std::cout << "fi_av_insert Not all addr added: " << num_success << "/" << vacc_fi_info->world_size << " " << fi_strerror(num_success) << "\n";
             vacc_fi_info->status = 1;
             return vacc_fi_info;
         }
