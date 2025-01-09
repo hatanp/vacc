@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
 
     unsigned long min_time = std::numeric_limits<unsigned long>::max();
 
-    for(int i = 0; i<3; i++){
+    for(int i = 0; i<5; i++){
 
 
         for(int i = 0; i<elem_count; i++){
@@ -56,7 +56,7 @@ int main(int argc, char* argv[]) {
             comm_buf[i] = 0.f;
         }
 
-        MPI_Barrier(MPI_COMM_WORLD); 
+        //MPI_Barrier(MPI_COMM_WORLD); 
 
         unsigned long start1 = std::chrono::duration_cast<std::chrono::nanoseconds>(
                                         std::chrono::high_resolution_clock::now().time_since_epoch())
@@ -73,7 +73,7 @@ int main(int argc, char* argv[]) {
         unsigned long end = std::chrono::duration_cast<std::chrono::nanoseconds>(
                                         std::chrono::high_resolution_clock::now().time_since_epoch())
                                         .count();
-        MPI_Barrier(MPI_COMM_WORLD); 
+        //MPI_Barrier(MPI_COMM_WORLD); 
         
         std::cout << (start2-start1)/1000000 << "ms " << (end-start2)/1000000 << "ms " << end-start1 << " ns" << "\n";
         min_time = std::min(end - start1, min_time);
