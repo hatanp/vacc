@@ -30,7 +30,7 @@ vacc::vacc_fi_info_t* vacc::init_fi_cxi(){
     MPI_Init(NULL, NULL);
     MPI_Comm_size(MPI_COMM_WORLD, &vacc_fi_info->world_size);
     MPI_Comm_rank(MPI_COMM_WORLD, &vacc_fi_info->rank);
-
+    assert(vacc_fi_info->world_size < 0xFFFF);//Only 16 bits reserved for certain tags.
     int host_ind = vacc_fi_info->rank%RANK_PER_NODE;
     std::cout << "rank: " << vacc_fi_info->rank << " host_ind: " << host_ind << "\n";
     //vacc::vacc_fi_info_t* vacc_fi_info = (vacc::vacc_fi_info_t*)calloc(1,sizeof(vacc::vacc_fi_info_t));
@@ -42,12 +42,14 @@ vacc::vacc_fi_info_t* vacc::init_fi_cxi(){
     hints->mode = FI_CONTEXT;
     hints->addr_format = FI_ADDR_CXI;
     hints->ep_attr->type = FI_EP_RDM;
-    //hints->domain_attr->resource_mgmt = FI_RM_ENABLED;
-    hints->domain_attr->resource_mgmt = FI_RM_DISABLED;
+    hints->domain_attr->resource_mgmt = FI_RM_ENABLED;
+    //hints->domain_attr->resource_mgmt = FI_RM_DISABLED;
     hints->domain_attr->threading = FI_THREAD_SAFE;
     hints->domain_attr->control_progress = FI_PROGRESS_MANUAL;
     hints->domain_attr->data_progress = FI_PROGRESS_MANUAL;
     //hints->tx_attr->size = 1;
+    hints->tx_attr->op_flags = FI_MATCH_COMPLETE;
+    //hints->rx_attr->op_flags = FI_DELIVERY_COMPLETE;
     hints->caps = FI_MSG | FI_TAGGED | FI_RECV | FI_SEND;
 
     {
@@ -153,11 +155,11 @@ vacc::vacc_fi_info_t* vacc::init_fi_cxi(){
 
         struct fi_cq_attr* cq_attr_tx = new fi_cq_attr();
         cq_attr_tx->format = FI_CQ_FORMAT_TAGGED;
-        cq_attr_tx->size = 32768*4;
+        cq_attr_tx->size = 32768*16;
 
         struct fi_cq_attr* cq_attr_rx = new fi_cq_attr();
         cq_attr_rx->format = FI_CQ_FORMAT_TAGGED;
-        cq_attr_rx->size = 32768*4;
+        cq_attr_rx->size = 32768*16;
         
         err = fi_cq_open(vacc_fi_info->domain[n], cq_attr_tx, &vacc_fi_info->tx_cq[n], NULL);
         if (err != FI_SUCCESS) {

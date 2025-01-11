@@ -22,6 +22,7 @@
 #include <sys/types.h>
 #include <sys/uio.h>
 
+
 int vacc::ring_allgather(float *input_buf, int elem_count, vacc::vacc_fi_info_t* vacc_fi_info){
     int world_size = vacc_fi_info->world_size;
     int rank = vacc_fi_info->rank;
